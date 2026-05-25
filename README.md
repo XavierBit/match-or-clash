@@ -143,7 +143,7 @@ The `word-lists/` folder in this repo contains ready-made JSON files for all fiv
 
 GNU General Public License v3.0 - https://www.gnu.org/licenses/gpl-3.0.en.html
 
-Copyright (C) 2025 Ivo Schmid / EASY Escola de Idiomas
+Copyright (C) 2026 Ivo Schmid / EASY Escola de Idiomas
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
