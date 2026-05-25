@@ -1,5 +1,6 @@
 # Match or Clash 🎮
 ### A Classroom Word Relationship Game for English Teachers
+###### Download the .html game file and the logo from: https://github.com/XavierBit/match-or-clash/releases
 
 <img width="762" height="auto" alt="Match-Or-Clash" src="https://github.com/user-attachments/assets/36f03a50-5fb6-4947-b554-5f173d13f7b1" />
 
@@ -50,7 +51,7 @@ Five levels, all pre-loaded with word pairs:
 
 ## How to Use
 
-1. Download `match-or-clash.html` and `Easy Logo 2023 new.png` — keep both in the same folder
+1. Download [match-or-clash.html](https://github.com/XavierBit/match-or-clash/releases/) and [Easy Logo 2023 new.png](https://github.com/XavierBit/match-or-clash/releases/) — keep both in the same folder 
 2. If you don't want to use our logo, just swap it out with your own.
 3. Open `match-or-clash.html` in any modern browser
 4. Choose a mode, a level, and set the timer
