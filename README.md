@@ -135,6 +135,7 @@ The `word-lists/` folder in this repo contains ready-made JSON files for all fiv
 | Version | Changes |
 |---------|---------|
 | v1.0 | Initial release — all five levels, antonyms and synonyms, JSON import, stats toggle, save/resume |
+| v1.1 | Added out of the box examples for all levels |
 
 ---
 
