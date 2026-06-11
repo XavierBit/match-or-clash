@@ -338,7 +338,7 @@ body::before {
 .timer-track { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 5; }
 .timer-fill {
   fill: none; stroke: #3fb950; stroke-width: 5; stroke-linecap: round;
-  stroke-dasharray: 201; stroke-dashoffset: 0;
+  stroke-dasharray: 201.06; /* 2 * pi * 32 — must match CIRCUMFERENCE in JS */ stroke-dashoffset: 0;
   transition: stroke-dashoffset 1s linear, stroke 0.4s;
 }
 .timer-num {
@@ -516,7 +516,7 @@ body::before {
 
   <div class="footer-bar">
     <span class="footer-credit">@Ivo for EASY Escola de Idiomas</span>
-    <span style="font-size:0.72rem; color:var(--muted);">v1.2</span>
+    <span style="font-size:0.72rem; color:var(--muted);">v1.3</span>
   </div>
 </div>
 
@@ -610,10 +610,10 @@ const DEFAULT_DATA = {
     antonyms:[
       ["early","late"],["cheap","expensive"],["light","heavy"],["safe","dangerous"],["win","lose"],
       ["remember","forget"],["lend","borrow"],["push","pull"],["inside","outside"],["always","never"],
-      ["question","answer"],["teach","learn"],["love","hate"]
+      ["ask","answer"],["teach","learn"],["love","hate"]
     ],
     synonyms:[
-      ["fast","quick"],["cheap","inexpensive"],["smart","clever"],["tired","sleepy"],["pretty","beautiful"],
+      ["speedy","swift"],["cheap","inexpensive"],["smart","clever"],["worn out","exhausted"],["pretty","beautiful"],
       ["scary","frightening"],["end","finish"],["build","make"],["friend","pal"],["gift","present"],
       ["reply","answer"],["trip","journey"]
     ]
@@ -676,12 +676,12 @@ const DEFAULT_DATA = {
   C1:{
     antonyms:[
       ["ambiguous","clear"],["superficial","profound"],["complacent","driven"],["coherent","incoherent"],
-      ["conceal","reveal"],["trivial","significant"],["progressive","conservative"],["plausible","implausible"],
+      ["conceal","reveal"],["trivial","significant"],["innovative","traditional"],["plausible","implausible"],
       ["stagnant","dynamic"],["meticulous","careless"],["forthright","evasive"],["consolidate","fragment"],
       ["obscure","prominent"]
     ],
     synonyms:[
-      ["alleviate","relieve"],["coerce","compel"],["depict","portray"],["disparate","distinct"],
+      ["alleviate","relieve"],["coerce","compel"],["depict","portray"],["ambiguous","unclear"],
       ["eloquent","articulate"],["erroneous","incorrect"],["fluctuate","vary"],["hamper","hinder"],
       ["lucid","clear"],["mitigate","reduce"],["prevalent","widespread"],["scrutinize","examine"]
     ]
@@ -730,7 +730,9 @@ function getPairs(lvl,type){ const c=getCustom(); return (c[lvl]&&c[lvl][type]&&
 function hasContent(lvl,mode){ if(mode==="mixed") return getPairs(lvl,"antonyms").length>0||getPairs(lvl,"synonyms").length>0; return getPairs(lvl,mode).length>0; }
 
 function saveProgress(){
-  localStorage.setItem(SAVE_KEY, JSON.stringify({ mode:selectedMode, level:selectedLevel, timer:selectedTimer, index:gameIndex }));
+  const currentQuestion = gamePool[gameIndex] ? gamePool[gameIndex].word : null;
+  const data = { mode:selectedMode, level:selectedLevel, timer:selectedTimer, questionWord:currentQuestion };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   const el=document.getElementById("save-status");
   if(el){ el.textContent="Progress saved."; el.style.color="#3fb950"; setTimeout(()=>{ el.textContent=""; },2500); }
 }
@@ -748,12 +750,27 @@ function buildHome(){
   rc.innerHTML = "";
   const saved = loadSaved();
   if(saved){
-    rc.innerHTML = `<div class="resume-bar"><span>Saved: <strong>${saved.level} &mdash; ${MODE_LABELS[saved.mode]}</strong>, question ${saved.index+1}</span><button class="btn-resume" onclick="resumeGame()">Resume</button></div>`;
+    const wordLabel = saved.questionWord ? `, starting at "${saved.questionWord}"` : "";
+    rc.innerHTML = `<div class="resume-bar"><span>Saved: <strong>${saved.level} — ${MODE_LABELS[saved.mode]}</strong>${wordLabel}</span><button class="btn-resume" onclick="resumeGame()">Resume</button></div>`;
   }
 }
 function resumeGame(){
   const saved=loadSaved(); if(!saved) return;
-  selectedMode=saved.mode; selectedLevel=saved.level; selectedTimer=saved.timer; gameIndex=saved.index;
+  selectedMode=saved.mode; selectedLevel=saved.level; selectedTimer=saved.timer;
+  // Restore UI selection state
+  document.querySelectorAll(".mode-card").forEach(c=>{
+    c.classList.toggle("selected", c.dataset.mode===selectedMode);
+  });
+  document.querySelectorAll(".timer-opt").forEach(b=>{
+    b.classList.toggle("selected", parseInt(b.textContent)===selectedTimer||b.textContent==="2 min"&&selectedTimer===120);
+  });
+  buildLevelGrid();
+  // Build pool then find the saved question by word
+  gamePool=buildPool(); gameIndex=0;
+  if(saved.questionWord){
+    const idx=gamePool.findIndex(q=>q.word===saved.questionWord);
+    if(idx !== -1) gameIndex=idx;
+  }
   startGame(true);
 }
 
@@ -803,7 +820,7 @@ function openEditor(lvl,type){
   panel.style.setProperty("--elc",lc); panel.className="open";
   panel.innerHTML=`
     <div class="editor-header">
-      <div class="editor-title">Editing: <span>${lvl} &mdash; ${LEVEL_NAMES[lvl]}</span></div>
+      <div class="editor-title">Editing: <span>${lvl} — ${LEVEL_NAMES[lvl]}</span></div>
       <button class="editor-close" onclick="closeEditor()">Close</button>
     </div>
     <div class="editor-tabs">
@@ -848,7 +865,7 @@ function resetEditor(){ if(!confirm("Reset "+openEditorLevel+" "+openEditorType+
 function closeEditor(){ openEditorLevel=null; const p=document.getElementById("editor-panel"); p.className=""; p.innerHTML=""; }
 function openBatch(){
   const overlay=document.createElement("div"); overlay.className="batch-modal-overlay"; overlay.id="batch-overlay";
-  overlay.innerHTML=`<div class="batch-modal"><h3>Batch Import &mdash; ${openEditorLevel} ${openEditorType}</h3><p>One pair per line, separated by a pipe |<br>word | opposite (or synonym)<br><br>Added to the current list in the editor.</p><textarea id="batch-ta" placeholder="ancient | modern&#10;arrive | depart&#10;..."></textarea><div class="batch-modal-actions"><button class="btn-batch-cancel" onclick="closeBatch()">Cancel</button><button class="btn-batch-apply" onclick="applyBatch()">Add to editor</button></div></div>`;
+  overlay.innerHTML=`<div class="batch-modal"><h3>Batch Import: ${openEditorLevel} ${openEditorType}</h3><p>One pair per line, separated by a pipe |<br>word | opposite (or synonym)<br><br>Added to the current list in the editor.</p><textarea id="batch-ta" placeholder="ancient | modern&#10;arrive | depart&#10;..."></textarea><div class="batch-modal-actions"><button class="btn-batch-cancel" onclick="closeBatch()">Cancel</button><button class="btn-batch-apply" onclick="applyBatch()">Add to editor</button></div></div>`;
   document.body.appendChild(overlay);
   overlay.onclick=e=>{ if(e.target===overlay) closeBatch(); };
   setTimeout(()=>{ const ta=document.getElementById("batch-ta"); if(ta) ta.focus(); },50);
@@ -970,24 +987,26 @@ function getSafeDistractors(questionWord, correctAnswer, type){
     });
   }
 
-  // Prefer distractors from the same category for plausibility
+  // Pull distractors from all words across both categories, excluding the blacklist
   const sameType = getAllWords().filter(w => !blacklist.has(w.toLowerCase()));
   const shuffled = shuffle(sameType);
 
-  // Fallback: if fewer than 2 safe distractors exist, fill from full pool
+  // Fallback: if fewer than 2 safe distractors exist, fill from full pool still respecting blacklist
   if(shuffled.length >= 2) return shuffled.slice(0, 2);
-  const fallback = getAllWords().filter(w =>
+  const fallback = getAllWords().filter(w => !blacklist.has(w.toLowerCase()));
+  if(fallback.length >= 2) return shuffle(fallback).slice(0, 2);
+  // Last resort: only exclude question word and correct answer
+  const lastResort = getAllWords().filter(w =>
     w.toLowerCase() !== questionWord.toLowerCase() &&
     w.toLowerCase() !== correctAnswer.toLowerCase()
   );
-  return shuffle(fallback).slice(0, 2);
+  return shuffle(lastResort).slice(0, 2);
 }
 function shuffle(a){ const r=[...a]; for(let i=r.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [r[i],r[j]]=[r[j],r[i]]; } return r; }
 
 function startGame(resume){
   if(!selectedLevel) return;
   if(!resume){ gamePool=buildPool(); gameIndex=0; }
-  else { gamePool=buildPool(); if(gameIndex>=gamePool.length) gameIndex=0; }
   score=0; wrong=0; streakHistory=[]; timeLeft=selectedTimer; answered=false; isPaused=false;
   const pauseBtn=document.getElementById("pause-btn");
   if(pauseBtn){ pauseBtn.classList.remove("paused"); pauseBtn.innerHTML="&#9646;&#9646;"; pauseBtn.title="Pause"; }
@@ -1016,12 +1035,12 @@ function loadQuestion(){
   const options=shuffle([q.answer,...distractors]);
   const letters=["a","b","c"];
   const grid=document.getElementById("options-grid"); grid.innerHTML="";
-  options.forEach((opt,i)=>{ const btn=document.createElement("button"); btn.className="option-btn"; btn.innerHTML=`<span class="opt-letter">${letters[i]}</span>${opt}`; btn.onclick=()=>pick(opt===q.answer,btn,q.answer,grid); grid.appendChild(btn); });
+  options.forEach((opt,i)=>{ const btn=document.createElement("button"); btn.className="option-btn"; btn.dataset.word=opt; btn.innerHTML=`<span class="opt-letter">${letters[i]}</span>${opt}`; btn.onclick=()=>pick(opt===q.answer,btn,q.answer,grid); grid.appendChild(btn); });
   renderStreak();
 }
 function pick(correct,btn,correctAnswer,grid){
   if(answered||isPaused) return; answered=true;
-  grid.querySelectorAll(".option-btn").forEach(b=>{ b.classList.add("locked"); b.onclick=null; if(b.textContent.replace(/^[abc]/,"").trim()===correctAnswer) b.classList.add("correct"); });
+  grid.querySelectorAll(".option-btn").forEach(b=>{ b.classList.add("locked"); b.onclick=null; if(b.dataset.word===correctAnswer) b.classList.add("correct"); });
   if(correct){ score++; streakHistory.push("hit"); document.getElementById("score-live").textContent=score; }
   else{ wrong++; btn.classList.add("wrong"); streakHistory.push("miss"); }
   renderStreak();
