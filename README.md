@@ -16,6 +16,10 @@ The teacher clicks the correct option. The timer runs down and a statistic shows
 
 <img width="762" height="auto" alt="game" src="https://github.com/user-attachments/assets/253d22df-a4eb-410f-8fbb-d8af12cf0b00" />
 
+Starting with version 1.2 you can now pause the game and explain a word. The possible answers are blurred out during this time:
+
+<img width="762" height="auto" alt="Pause mode" src="https://github.com/user-attachments/assets/99e466b5-426d-4419-b646-474f765fb03e" />
+
 
 Three game modes:
 
