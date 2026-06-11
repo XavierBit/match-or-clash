@@ -141,7 +141,7 @@ The `word-lists/` folder in this repo contains ready-made JSON files for all fiv
 | v1.0 | Initial release — all five levels, antonyms and synonyms, JSON import, stats toggle, save/resume |
 | v1.1 | Added out of the box examples for all levels |
 | v1.2 | Added 'Pause button' functionality with blur function |
-
+| v1.3 | Several bug fixes |
 ---
 
 ## License
