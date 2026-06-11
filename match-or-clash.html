@@ -140,6 +140,27 @@ body::before {
 .see-results-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #b0b8d4, 0 12px 30px rgba(0,0,0,0.35); }
 .see-results-btn.visible { display: block; }
 
+/* Pause button */
+.pause-btn {
+  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.25);
+  color: #fff; border-radius: 50%; width: 44px; height: 44px; flex-shrink: 0;
+  cursor: pointer; font-size: 1rem; line-height: 1; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+}
+.pause-btn:hover { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.5); }
+.pause-btn.paused { background: #ffd93d; border-color: #ffd93d; color: #0d1117; }
+
+/* Paused overlay on options */
+.options-paused { filter: blur(6px) brightness(0.4); pointer-events: none; user-select: none; transition: filter 0.25s; }
+.paused-label {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 1.1rem; font-weight: 800; color: #ffd93d; letter-spacing: 0.2em;
+  text-transform: uppercase; pointer-events: none; display: none;
+}
+.paused-label.visible { display: block; }
+.options-wrap { position: relative; width: 100%; max-width: 780px; }
+
 /* Resume bar */
 .resume-bar {
   width: 100%; max-width: 780px; background: var(--surface); border: 1px solid var(--border);
@@ -495,7 +516,7 @@ body::before {
 
   <div class="footer-bar">
     <span class="footer-credit">@Ivo for EASY Escola de Idiomas</span>
-    <span style="font-size:0.72rem; color:var(--muted);">v1.1</span>
+    <span style="font-size:0.72rem; color:var(--muted);">v1.2</span>
   </div>
 </div>
 
@@ -515,12 +536,15 @@ body::before {
 
   <div style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:780px;">
     <div class="streak-bar" id="streak-bar"></div>
-    <div class="timer-wrap">
-      <svg class="timer-svg" width="72" height="72" viewBox="0 0 72 72">
-        <circle class="timer-track" cx="36" cy="36" r="32"/>
-        <circle class="timer-fill" id="timer-fill" cx="36" cy="36" r="32"/>
-      </svg>
-      <div class="timer-num" id="timer-num">60</div>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <button class="pause-btn" id="pause-btn" onclick="togglePause()" title="Pause">&#9646;&#9646;</button>
+      <div class="timer-wrap">
+        <svg class="timer-svg" width="72" height="72" viewBox="0 0 72 72">
+          <circle class="timer-track" cx="36" cy="36" r="32"/>
+          <circle class="timer-fill" id="timer-fill" cx="36" cy="36" r="32"/>
+        </svg>
+        <div class="timer-num" id="timer-num">60</div>
+      </div>
     </div>
   </div>
 
@@ -528,7 +552,10 @@ body::before {
     <div class="word-prompt" id="word-prompt"></div>
     <div class="word-main"  id="word-main"></div>
   </div>
-  <div class="options-grid" id="options-grid"></div>
+  <div class="options-wrap">
+    <div class="options-grid" id="options-grid"></div>
+    <div class="paused-label" id="paused-label">Paused</div>
+  </div>
   <button class="see-results-btn" id="see-results-btn" onclick="endGame()">See Results &#8594;</button>
 </div>
 
@@ -668,10 +695,33 @@ let gamePool = [], gameIndex = 0, score = 0, wrong = 0;
 let timeLeft = 60, timerInterval = null, answered = false, streakHistory = [];
 let openEditorLevel = null, openEditorType = "antonyms";
 let showStats = true;
+let isPaused = false;
 
 function toggleStats(cb){
   showStats = cb.checked;
   document.getElementById("stats-desc").textContent = showStats ? "On" : "Off";
+}
+
+function togglePause(){
+  isPaused = !isPaused;
+  const btn = document.getElementById("pause-btn");
+  const grid = document.getElementById("options-grid");
+  const label = document.getElementById("paused-label");
+  if(isPaused){
+    clearInterval(timerInterval);
+    grid.classList.add("options-paused");
+    label.classList.add("visible");
+    btn.classList.add("paused");
+    btn.innerHTML = "&#9654;"; // play icon
+    btn.title = "Resume";
+  } else {
+    grid.classList.remove("options-paused");
+    label.classList.remove("visible");
+    btn.classList.remove("paused");
+    btn.innerHTML = "&#9646;&#9646;"; // pause icon
+    btn.title = "Pause";
+    if(timeLeft > 0 && !answered) startTimer();
+  }
 }
 
 function getCustom(){ try{ return JSON.parse(localStorage.getItem(CUSTOM_KEY))||{}; }catch{ return {}; } }
@@ -768,6 +818,7 @@ function openEditor(lvl,type){
       <button class="btn-batch-q" onclick="openBatch()">Batch import</button>
       <button class="btn-batch-q" onclick="triggerJSONImport()">Import JSON</button>
       <input type="file" id="json-file-input" accept=".json" style="display:none" onchange="importJSON(this)">
+      <button class="btn-batch-q" onclick="exportAllLevels()">Export all</button>
       <button class="btn-reset-q" onclick="resetEditor()">Reset</button>
     </div>`;
   renderRows(getPairs(lvl,type));
@@ -823,6 +874,28 @@ function importJSON(input){
   reader.onload=e=>{
     try{
       const data=JSON.parse(e.target.result);
+      // Detect all-levels export format (keys are level names)
+      const isAllLevels = ["A1","A2","B1","B2","C1"].some(l=>data[l]);
+      if(isAllLevels){
+        const c=getCustom();
+        let total=0;
+        ["A1","A2","B1","B2","C1"].forEach(lvl=>{
+          if(!data[lvl]) return;
+          if(!c[lvl]) c[lvl]={};
+          ["antonyms","synonyms"].forEach(type=>{
+            const pairs=data[lvl][type];
+            if(Array.isArray(pairs)&&pairs.length){
+              const valid=pairs.filter(p=>Array.isArray(p)&&p.length>=2&&p[0].trim()&&p[1].trim());
+              if(valid.length){ c[lvl][type]=valid; total+=valid.length; }
+            }
+          });
+        });
+        saveCustom(c); buildLevelGrid();
+        const msg=document.getElementById("editor-saved-msg");
+        if(msg){ msg.textContent=total+" pairs loaded across all levels"; msg.classList.add("show"); setTimeout(()=>{ msg.classList.remove("show"); msg.textContent="Saved!"; },2800); }
+        return;
+      }
+      // Single-level format
       const pairs=data[openEditorType];
       if(!Array.isArray(pairs)||!pairs.length){
         alert("No "+openEditorType+" array found in this file.\nExpected: { \""+openEditorType+"\": [[\"word\",\"word\"], ...] }");
@@ -833,9 +906,7 @@ function importJSON(input){
       const list=document.getElementById("editor-list");
       list.innerHTML="";
       valid.forEach((p,i)=>list.appendChild(makeRow(p[0].trim(),p[1].trim(),i)));
-      renumber();
-      list.scrollTop=0;
-      // Auto-save to localStorage and refresh level grid
+      renumber(); list.scrollTop=0;
       const c=getCustom(); if(!c[openEditorLevel]) c[openEditorLevel]={};
       c[openEditorLevel][openEditorType]=valid.map(p=>[p[0].trim(),p[1].trim()]);
       saveCustom(c); buildLevelGrid();
@@ -848,6 +919,25 @@ function importJSON(input){
   reader.readAsText(file);
 }
 
+function exportAllLevels(){
+  const all = {};
+  ["A1","A2","B1","B2","C1"].forEach(lvl=>{
+    all[lvl] = {
+      antonyms: getPairs(lvl,"antonyms"),
+      synonyms: getPairs(lvl,"synonyms")
+    };
+  });
+  const json = JSON.stringify(all, null, 2);
+  const blob = new Blob([json], {type:"application/json"});
+  const url  = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0,10);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "match-or-clash-wordlists-" + date + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function buildPool(){
   let pool=[];
   if(selectedMode==="antonyms"||selectedMode==="mixed") getPairs(selectedLevel,"antonyms").forEach(p=>pool.push({word:p[0],answer:p[1],type:"antonyms"}));
@@ -855,13 +945,56 @@ function buildPool(){
   return shuffle(pool);
 }
 function getAllWords(){ const s=new Set(); ["antonyms","synonyms"].forEach(t=>getPairs(selectedLevel,t).forEach(p=>{s.add(p[0]);s.add(p[1]);})); return[...s]; }
+
+function getSafeDistractors(questionWord, correctAnswer, type){
+  // Build a blacklist: the question word, the correct answer, and any word
+  // that appears in the same pair as the question word (in the same category).
+  // This prevents valid synonyms/antonyms from appearing as wrong options.
+  const blacklist = new Set([questionWord.toLowerCase(), correctAnswer.toLowerCase()]);
+
+  getPairs(selectedLevel, type).forEach(p => {
+    const a = p[0].toLowerCase(), b = p[1].toLowerCase();
+    if(a === questionWord.toLowerCase() || b === questionWord.toLowerCase()){
+      blacklist.add(a); blacklist.add(b);
+    }
+  });
+
+  // In mixed mode, also blacklist from the other category
+  if(selectedMode === "mixed"){
+    const otherType = type === "antonyms" ? "synonyms" : "antonyms";
+    getPairs(selectedLevel, otherType).forEach(p => {
+      const a = p[0].toLowerCase(), b = p[1].toLowerCase();
+      if(a === questionWord.toLowerCase() || b === questionWord.toLowerCase()){
+        blacklist.add(a); blacklist.add(b);
+      }
+    });
+  }
+
+  // Prefer distractors from the same category for plausibility
+  const sameType = getAllWords().filter(w => !blacklist.has(w.toLowerCase()));
+  const shuffled = shuffle(sameType);
+
+  // Fallback: if fewer than 2 safe distractors exist, fill from full pool
+  if(shuffled.length >= 2) return shuffled.slice(0, 2);
+  const fallback = getAllWords().filter(w =>
+    w.toLowerCase() !== questionWord.toLowerCase() &&
+    w.toLowerCase() !== correctAnswer.toLowerCase()
+  );
+  return shuffle(fallback).slice(0, 2);
+}
 function shuffle(a){ const r=[...a]; for(let i=r.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [r[i],r[j]]=[r[j],r[i]]; } return r; }
 
 function startGame(resume){
   if(!selectedLevel) return;
   if(!resume){ gamePool=buildPool(); gameIndex=0; }
   else { gamePool=buildPool(); if(gameIndex>=gamePool.length) gameIndex=0; }
-  score=0; wrong=0; streakHistory=[]; timeLeft=selectedTimer; answered=false;
+  score=0; wrong=0; streakHistory=[]; timeLeft=selectedTimer; answered=false; isPaused=false;
+  const pauseBtn=document.getElementById("pause-btn");
+  if(pauseBtn){ pauseBtn.classList.remove("paused"); pauseBtn.innerHTML="&#9646;&#9646;"; pauseBtn.title="Pause"; }
+  const grid=document.getElementById("options-grid");
+  if(grid){ grid.classList.remove("options-paused"); }
+  const label=document.getElementById("paused-label");
+  if(label){ label.classList.remove("visible"); }
   const mc=MODE_COLORS[selectedMode];
   document.getElementById("game-badge").textContent=selectedLevel+" — "+MODE_LABELS[selectedMode];
   document.getElementById("score-live").textContent="0";
@@ -879,7 +1012,7 @@ function loadQuestion(){
     promptEl.innerHTML='Find a <span style="color:#4ecdc4;">SYNONYM</span> for';
   }
   document.getElementById("word-main").textContent=q.word;
-  const distractors=shuffle(getAllWords().filter(w=>w!==q.answer&&w!==q.word)).slice(0,2);
+  const distractors=getSafeDistractors(q.word, q.answer, q.type);
   const options=shuffle([q.answer,...distractors]);
   const letters=["a","b","c"];
   const grid=document.getElementById("options-grid"); grid.innerHTML="";
@@ -887,7 +1020,7 @@ function loadQuestion(){
   renderStreak();
 }
 function pick(correct,btn,correctAnswer,grid){
-  if(answered) return; answered=true;
+  if(answered||isPaused) return; answered=true;
   grid.querySelectorAll(".option-btn").forEach(b=>{ b.classList.add("locked"); b.onclick=null; if(b.textContent.replace(/^[abc]/,"").trim()===correctAnswer) b.classList.add("correct"); });
   if(correct){ score++; streakHistory.push("hit"); document.getElementById("score-live").textContent=score; }
   else{ wrong++; btn.classList.add("wrong"); streakHistory.push("miss"); }
