@@ -142,6 +142,8 @@ The `word-lists/` folder in this repo contains ready-made JSON files for all fiv
 | v1.1 | Added out of the box examples for all levels |
 | v1.2 | Added 'Pause button' functionality with blur function |
 | v1.3 | Several bug fixes |
+| v1.4 | ImportJSON merges with existing pairs instead of overwriting; |
+| |deduplicates by case-insensitive key; editor display rebuilt from merged list.|
 ---
 
 ## License
