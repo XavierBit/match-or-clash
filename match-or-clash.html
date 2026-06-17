@@ -516,7 +516,7 @@ body::before {
 
   <div class="footer-bar">
     <span class="footer-credit">@Ivo for EASY Escola de Idiomas</span>
-    <span style="font-size:0.72rem; color:var(--muted);">v1.3</span>
+    <span style="font-size:0.72rem; color:var(--muted);">v1.4</span>
   </div>
 </div>
 
@@ -903,7 +903,13 @@ function importJSON(input){
             const pairs=data[lvl][type];
             if(Array.isArray(pairs)&&pairs.length){
               const valid=pairs.filter(p=>Array.isArray(p)&&p.length>=2&&p[0].trim()&&p[1].trim());
-              if(valid.length){ c[lvl][type]=valid; total+=valid.length; }
+              if(valid.length){
+                const existing = c[lvl][type] || [];
+                const seen = new Set(existing.map(p=>p[0].toLowerCase()+"|"+p[1].toLowerCase()));
+                const merged = [...existing];
+                valid.forEach(p=>{ const key=p[0].toLowerCase()+"|"+p[1].toLowerCase(); if(!seen.has(key)){ merged.push(p); seen.add(key); } });
+                c[lvl][type]=merged; total+=merged.length-existing.length;
+              }
             }
           });
         });
@@ -920,12 +926,16 @@ function importJSON(input){
       }
       const valid=pairs.filter(p=>Array.isArray(p)&&p.length>=2&&p[0].trim()&&p[1].trim());
       if(!valid.length){ alert("No valid pairs found in the "+openEditorType+" array."); return; }
+      const c=getCustom(); if(!c[openEditorLevel]) c[openEditorLevel]={};
+      const existing=c[openEditorLevel][openEditorType]||[];
+      const seen=new Set(existing.map(p=>p[0].toLowerCase()+"|"+p[1].toLowerCase()));
+      const merged=[...existing];
+      valid.forEach(p=>{ const key=p[0].trim().toLowerCase()+"|"+p[1].trim().toLowerCase(); if(!seen.has(key)){ merged.push([p[0].trim(),p[1].trim()]); seen.add(key); } });
+      c[openEditorLevel][openEditorType]=merged;
       const list=document.getElementById("editor-list");
       list.innerHTML="";
-      valid.forEach((p,i)=>list.appendChild(makeRow(p[0].trim(),p[1].trim(),i)));
+      merged.forEach((p,i)=>list.appendChild(makeRow(p[0],p[1],i)));
       renumber(); list.scrollTop=0;
-      const c=getCustom(); if(!c[openEditorLevel]) c[openEditorLevel]={};
-      c[openEditorLevel][openEditorType]=valid.map(p=>[p[0].trim(),p[1].trim()]);
       saveCustom(c); buildLevelGrid();
       const msg=document.getElementById("editor-saved-msg");
       if(msg){ msg.textContent=valid.length+" pairs loaded"; msg.classList.add("show"); setTimeout(()=>{ msg.classList.remove("show"); msg.textContent="Saved!"; },2500); }
